@@ -1,0 +1,73 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Syntaxis — Code Quality Analyser</title>
+<style>
+:root{--bg:#f7f7f9;--card:#fff;--tx:#1f2328;--mu:#6b7280;--bd:#e5e7eb;--ac:#4f46e5;--g:#16a34a;--a:#d97706;--r:#dc2626}
+*{box-sizing:border-box}body{margin:0;font:15px/1.5 Inter,system-ui,sans-serif;background:var(--bg);color:var(--tx)}
+header{display:flex;justify-content:space-between;align-items:center;padding:14px 32px;background:var(--card);border-bottom:1px solid var(--bd)}
+.logo{font-weight:700;font-size:20px;letter-spacing:-.3px}.logo b{color:var(--ac)}
+main{max-width:1080px;margin:0 auto;padding:28px 20px}h1{margin:0 0 4px;font-size:26px}p.s{color:var(--mu);margin:0 0 22px}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:20px;box-shadow:0 1px 2px #0000000a}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+select,button{font:inherit;padding:9px 14px;border-radius:8px;border:1px solid var(--bd);background:#fff;cursor:pointer}
+button.p{background:var(--ac);color:#fff;border-color:var(--ac);font-weight:600}button.p:disabled{opacity:.6;cursor:wait}
+textarea{width:100%;height:300px;font:13px/1.5 ui-monospace,Menlo,monospace;padding:14px;border:1px solid var(--bd);border-radius:8px;resize:vertical;tab-size:4}
+.err{background:#fef2f2;color:var(--r);border:1px solid #fecaca;padding:10px 14px;border-radius:8px;margin-top:12px}
+.grid{display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));margin-top:16px}
+.big{font-size:54px;font-weight:700;line-height:1}.lab{color:var(--mu);font-size:13px}
+.m{display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px dashed var(--bd)}
+.bar{height:10px;border-radius:5px;background:var(--bd);overflow:hidden;margin:3px 0 10px}.bar i{display:block;height:100%}
+table{width:100%;border-collapse:collapse;font-size:14px}th,td{text-align:left;padding:9px 8px;border-bottom:1px solid var(--bd);vertical-align:top}th{color:var(--mu);font-weight:600;font-size:12px;text-transform:uppercase}
+.tag{padding:2px 9px;border-radius:99px;font-size:12px;font-weight:600;color:#fff}
+.Critical,.High{background:var(--r)}.Medium{background:var(--a)}.Low{background:#3b82f6}.Informational{background:#9ca3af}
+#res{display:none;margin-top:24px}small{color:var(--mu)}h3{margin:0 0 10px;font-size:16px}.hide{display:none}
+</style></head><body>
+<header><div class="logo">Syntax<b>is</b></div><small>Code Quality Analyser using Data Science</small></header>
+<main>
+<h1>Analyze your code</h1><p class="s">Paste or upload C, Python or Java code to get a quality score, detected issues and suggestions. Code is analysed statically and never executed.</p>
+<div class="card">
+ <div class="row"><select id="lang"><option value="python">Python</option><option value="c">C</option><option value="java">Java</option></select>
+ <button onclick="f.click()">Upload file</button><input id="f" type="file" class="hide" accept=".py,.c,.h,.java"><small id="fn">No file selected</small>
+ <span style="flex:1"></span><button onclick="clr()">Clear</button><button class="p" id="go" onclick="run()">Analyze code</button></div>
+ <textarea id="code" spellcheck="false" placeholder="Paste your source code here…"></textarea><div id="err" class="err hide"></div>
+</div>
+<div id="res">
+ <div class="grid">
+  <div class="card"><div class="lab">Overall quality score</div><div class="big" id="sc"></div><b id="rt"></b>
+   <p class="lab" id="mlr"></p></div>
+  <div class="card"><h3>Summary metrics</h3><div id="mt"></div></div>
+  <div class="card"><h3>Issues by severity</h3><div id="sv"></div><h3 style="margin-top:14px">Complexity</h3><div id="cx"></div></div>
+ </div>
+ <div class="card" style="margin-top:16px"><div class="row" style="justify-content:space-between"><h3 style="margin:0">Detected issues</h3>
+  <span><select id="flt" onchange="iss()"><option value="">All severities</option><option>Critical</option><option>High</option><option>Medium</option><option>Low</option><option>Informational</option></select>
+  <button onclick="exp()">Export report (CSV)</button></span></div>
+  <div style="overflow-x:auto"><table><thead><tr><th>Severity</th><th>Issue</th><th>Line</th><th>Recommendation</th><th>Basis</th></tr></thead><tbody id="ib"></tbody></table></div></div>
+ <div class="grid">
+  <div class="card"><h3>ML model (from PPT pipeline)</h3><div id="ml"></div></div>
+  <div class="card"><h3>How the score works</h3><small id="lim"></small></div>
+ </div>
+</div></main>
+<script>
+const $=id=>document.getElementById(id);let R=null,fname='pasted code';
+const col=s=>s>=70?'var(--g)':s>=50?'var(--a)':'var(--r)';
+$('f').onchange=e=>{const x=e.target.files[0];if(!x)return;fname=x.name;$('fn').textContent=x.name;
+ const ext=x.name.split('.').pop().toLowerCase();$('lang').value={py:'python',c:'c',h:'c',java:'java'}[ext]||$('lang').value;
+ const r=new FileReader();r.onload=()=>$('code').value=r.result;r.readAsText(x)};
+function clr(){$('code').value='';fname='pasted code';$('fn').textContent='No file selected';$('err').classList.add('hide');$('res').style.display='none';$('f').value=''}
+async function run(){const b=$('go');$('err').classList.add('hide');b.disabled=true;b.textContent='Analyzing…';
+ try{const r=await fetch('/api/analyze',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({language:$('lang').value,code:$('code').value,filename:fname})});
+  const j=await r.json();if(!r.ok)throw new Error(j.detail||'Analysis failed');R=j;show()}
+ catch(e){$('err').textContent=e.message;$('err').classList.remove('hide');$('res').style.display='none'}
+ b.disabled=false;b.textContent='Analyze code'}
+function kv(o){return Object.entries(o).map(([k,v])=>`<div class="m"><span>${k.replace(/_/g,' ')}</span><b>${v}</b></div>`).join('')}
+function show(){$('res').style.display='block';$('sc').textContent=R.score;$('sc').style.color=col(R.score);$('rt').textContent=R.rating;
+ $('mlr').textContent=`ML classifier: ${R.ml_label} (P(good)=${R.ml_prob_good}) · Rule score: ${R.rule_score}`;
+ $('mt').innerHTML=kv(R.metrics);const t=Math.max(1,Object.values(R.severity).reduce((a,b)=>a+b,0));
+ $('sv').innerHTML=Object.entries(R.severity).map(([k,v])=>`<div class="lab">${k}: ${v}</div><div class="bar"><i class="${k}" style="width:${v/t*100}%"></i></div>`).join('');
+ $('cx').innerHTML=R.complexity?kv({mean:R.complexity.mean,'90th percentile':R.complexity.p90,max:R.complexity.max}):'<small>No functions found.</small>';
+ const m=R.model;$('ml').innerHTML=kv({'Random Forest accuracy':(m.accuracy*100).toFixed(1)+'%',precision:(m.precision*100).toFixed(1)+'%',recall:(m.recall*100).toFixed(1)+'%'})+`<small>${m.note}</small>`;
+ $('lim').innerHTML=R.limitations.join('<br><br>')+'<br><br>Bands: ≥85 Excellent · ≥70 Good · ≥50 Needs Improvement · &lt;50 Poor.';iss();$('res').scrollIntoView({behavior:'smooth'})}
+function iss(){const f=$('flt').value,L=R.issues.filter(i=>!f||i.severity===f);
+ $('ib').innerHTML=L.length?L.map(i=>`<tr><td><span class="tag ${i.severity}">${i.severity}</span></td><td><b>${i.title}</b><br><small>${i.description}</small></td><td>${i.line??'—'}</td><td>${i.recommendation}</td><td><small>${i.kind}</small></td></tr>`).join(''):'<tr><td colspan="5"><small>No issues found.</small></td></tr>'}
+async function exp(){const r=await fetch('/api/report',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(R)});
+ const a=document.createElement('a');a.href=URL.createObjectURL(await r.blob());a.download='syntaxis_report.csv';a.click()}
+</script></body></html>
